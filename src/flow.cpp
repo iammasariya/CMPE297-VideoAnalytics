@@ -94,14 +94,122 @@ cvDestroyWindow( "Video Stream" );
 
 Mat formatImagesForPCA(const vector<Mat> &data)
 {
-    Mat dst(static_cast<int>(data.size()), data[0].rows*data[0].cols, CV_64F);
-    for(unsigned int i = 0; i < data.size(); i++)
-    {
-        Mat image_row = data[i].clone().reshape(1,1);
-        Mat row_i = dst.row(i);
-        image_row.convertTo(row_i,CV_64F);
-    }
+	Mat dst(static_cast<int>(data.size()), data[0].rows*data[0].cols, CV_64F);
+	for(unsigned int i = 0; i < data.size(); i++)
+	{
+		Mat image_row = data[i].clone().reshape(1,1);
+		Mat row_i = dst.row(i);
+		image_row.convertTo(row_i,CV_64F);
+	}
+	return dst;
 }
+
+vector<float> getPhi(vector<float> featureVector)
+{
+	vector<float> phiVector;
+	int length = featureVector.size();
+
+	phiVector.push_back(1.0);
+
+	for(int i=0;i<length;i++)
+	{
+		phiVector.push_back(2*featureVector[i]);
+	}
+
+	for(int i=0;i<length;i++)
+	{
+		for(int j=i;j<length;j++)
+		{
+			phiVector.push_back(2*featureVector[i]*2*featureVector[j]);
+		}
+	}
+
+	for(int i=0;i<length;i++)
+	{
+		phiVector.push_back(4*featureVector[i]*featureVector[i]-2);
+	}
+
+	for(int i=0;i<phiVector.size();i++)
+	{
+		cout<<"\t"<<phiVector[i];
+	}
+	return phiVector;
+}
+vector<float> getPhi(Mat featureVector)
+{
+	vector<float> phiVector;
+	int length = featureVector.cols;
+
+	phiVector.push_back(1.0);
+
+	for(int i=0;i<length;i++)
+	{
+		phiVector.push_back(2*featureVector.at<float>(0,i));
+	}
+
+	for(int i=0;i<length;i++)
+	{
+		for(int j=i;j<length;j++)
+		{
+			phiVector.push_back(2*featureVector.at<float>(0,i)*2*featureVector.at<float>(0,j));
+		}
+	}
+
+	for(int i=0;i<length;i++)
+	{
+		phiVector.push_back(4*featureVector.at<float>(0,i)*featureVector.at<float>(0,i)-2);
+	}
+
+	return phiVector;
+}
+vector<float> getAlpha(vector<Mat> cluster)
+{
+	int N = cluster.size();
+	//float sum=0;
+	vector<float> alphaVector;
+
+	vector<vector<float>> phiVectors;
+	for(int i=0;i<N;i++)
+	{
+		phiVectors.push_back(getPhi(cluster[i]));
+	}
+
+
+	for(int i=0;i<N;i++)
+	{
+		float sum = 0;
+		for(int j=0;j<N;j++)
+		{
+			sum= sum+phiVectors[j][i];
+			cout<<"sum inside"<<sum;
+		}
+		cout<<"\n\n\nsum"<<sum/N;
+		alphaVector.push_back(sum/N);
+	}
+	return alphaVector;
+}
+
+float getProbability(Mat testFeatureVector,vector<Mat> cluster)
+{
+	float sum = 0;
+	vector<float> phiVector = getPhi(testFeatureVector);
+	cout<<"\n\n Phi Vector";
+	for(int i=0;i<phiVector.size();i++)
+	{
+		cout<<"   "<<phiVector[i];
+	}
+
+	vector<float> alphaVector = getAlpha(cluster);
+	cout<<"\n\n\n"<<alphaVector.size()<<"\n\nsum in prob";
+	for(int i=0;i<alphaVector.size();i++)
+	{
+		sum+=alphaVector[i]*phiVector[i];
+		cout<<"   "<<sum;
+	}
+
+	return sum;
+}
+
 // Feature Extraction from stored images
 //std::map<int, cv::Mat> FindFeatures(const char* directory){
 std::vector<Mat> FindFeatures(const char* directory){
@@ -123,20 +231,22 @@ std::vector<Mat> FindFeatures(const char* directory){
 
 		while((ent = readdir(dir)) != NULL)
 		{
+			cout << ent->d_name<<endl;
 			string path = string(directory).append("/");
 			if (!strcmp (ent->d_name, "."))
 				continue;
 			if (!strcmp (ent->d_name, ".."))
 				continue;
+
 			path.append(ent->d_name);
 			string name = std::string(ent->d_name);
 
-			int group = stoi(name.substr(2,1));
+			//int group = stoi(name.substr(2,1));
 			//int imgno = stoi(name.substr(3,1));
 			//cv::Mat featMat(5,15,CV_64F);
 			frame = imread(path,1);
 			cv::cvtColor(frame, gray, CV_BGR2GRAY);
-			threshold(gray,thresh,210,255,CV_THRESH_BINARY);
+			threshold(gray,thresh,214,255,CV_THRESH_BINARY);
 			findContours(thresh, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 			frame.copyTo(dst);
 			for (int i = 0; i < contours.size(); i++)
@@ -148,7 +258,7 @@ std::vector<Mat> FindFeatures(const char* directory){
 
 				// Skip small or non-convex objects
 				vector<Rect> boundRect( contours.size() );
-				if (std::fabs(cv::contourArea(contours[i])) < 100 || !cv::isContourConvex(approx))
+				if (std::fabs(cv::contourArea(contours[i])) < 2000 || std::fabs(cv::arcLength(contours[i],true)) < 150 || std::fabs(cv::arcLength(contours[i],true)) > 550 || !cv::isContourConvex(approx))
 					continue;
 
 				if (approx.size() == 4)
@@ -181,21 +291,21 @@ std::vector<Mat> FindFeatures(const char* directory){
 						cout<<"Area is : "<<area<<endl;
 
 						double length = arcLength(contours[i],true);
-						cout << "Length is : "<<length<<endl;
+						//cout << "Length is : "<<length<<endl;
 
 						double xbar = mom.m10/mom.m00;
 						double ybar = mom.m01/mom.m00;
-						cout<<"X bar is: "<< xbar <<endl;
-						cout<< "Y bar is"<<ybar <<endl;
+						//cout<<"X bar is: "<< xbar <<endl;
+						//cout<< "Y bar is"<<ybar <<endl;
 
 						double centroidx = boundRect[i].x + (boundRect[i].width / 2);
 						double centroidy = boundRect[i].y + (boundRect[i].height / 2);
 
 						HuMoments(mom,hu);
 
-						for(int k=0;k<7;k++){
-							cout<<"Moment is:"<<hu[k]<<endl;
-						}
+						//						for(int k=0;k<7;k++){
+						//							cout<<"Moment is:"<<hu[k]<<endl;
+						//						}
 						double x = mom.m20 + mom.m02;
 						double y = 4*(mom.m11*mom.m11) + ((mom.m20 - mom.m02)*(mom.m20-mom.m02));
 						double theta = (x+sqrt(y))/(x-sqrt(y));
@@ -227,8 +337,9 @@ std::vector<Mat> FindFeatures(const char* directory){
 				}
 
 			}
-			cv::imshow("src", frame);
-			cv::imshow("dst", dst);
+			//cv::imshow("src", frame);
+			//cv::imshow("dst", dst);
+			//waitKey(0);
 			//int a = remove(path.c_str());
 		}
 		for(int i =0;i<featureVectorGroup.size();i++)
@@ -268,49 +379,87 @@ int main() {
 		return EXIT_FAILURE;
 	}
 
-	//std::map<int,cv::Mat> featmap = FindFeatures("./W_group");
 	std::vector<Mat> inputFeatureGroup = FindFeatures("./W_group");
-	//	cout << featmap.count(1)<<endl;
-	//	 // show content:
-	//	  for (std::map<int,cv::Mat>::iterator it=featmap.begin(); it!=featmap.end(); ++it)
-	//	    {std::cout << it->first << " => " << it->second << '\n';
-	//
-	//	///////////////////////////////////////
-	//	  int rowCount=5;
-	//	  int featureVecSize=15;
-	//
-	//	  Mat input_feature_vector(featureVecSize,rowCount,CV_64F);
-	//
-	//	      for(int i=0;i<rowCount;i++)
-	//	      {
-	//	          for(int j=0;j<featureVecSize;j++)
-	//	          {
-	//	              input_feature_vector.at<double>(i,j)=it->second.at<double>(j,i);
-	//
-	//	          }
-	//
-	//	      }
-	//	      cout<<input_feature_vector<<endl;
-	//
-	//	      Mat projectionResult;
-			cout<<inputFeatureGroup[0];
-			Mat featureMat = formatImagesForPCA(inputFeatureGroup);
-			//cout<<featureMat.size;
-		      PCA pca(inputFeatureGroup[0],cv::Mat(),0, 1);
-		     // Mat vp = pca.project(featureMat.row(0));
-	//	      //cerr << pca.eigenvectors.size() << endl;
-	//	      /*cout<<"PCA Mean:"<<endl;
-	//	      cout<<pca.mean<<endl;*/
-				//cout<<vp;
-	//	      //pca.project(input_feature_vector,projectionResult);
-	//	      //cerr << projectionResult.size() << endl;
-	//
-	//	      cout<<"PCA Projection Result:"<<endl;
-	//	      cout<<vp<<endl;
-	//	    }
+	Mat featureMat = formatImagesForPCA(inputFeatureGroup);
+	//cout <<endl<<"size"<<featureMat.size();
+	PCA pca(featureMat,cv::Mat(),CV_PCA_DATA_AS_ROW, 10);
+	Mat vp = pca.project(featureMat);
 
-	///////////////////////////////////////
-	//waitKey(0);
+	//cout<<"VP Size: "<<vp.size()<<endl;
+	//cout<<vp<<endl;
+
+	int clusterCount = 4;
+	Mat labels;
+	int attempts = 4;
+	Mat centers;
+
+	vp.convertTo(vp,CV_32F);
+	kmeans(vp, clusterCount, labels,
+			TermCriteria( TermCriteria::EPS+TermCriteria::COUNT, 20, 1.0),
+			attempts, KMEANS_PP_CENTERS , centers);
+
+	cout << centers<<endl;
+	cout<< labels<<endl;
+	cout<<"\n\n"<<vp;
+
+	vector<Mat> cluster1;
+	vector<Mat> cluster2;
+	vector<Mat> cluster3;
+	vector<Mat> cluster4;
+
+	for (int i = 0; i < vp.rows; ++i)
+	{
+		Mat vec = vp.row(i);
+		if (labels.at<int>(i) == 0)
+		{
+			cluster1.push_back(vec);
+		}
+		if (labels.at<int>(i) == 1)
+		{
+			cluster2.push_back(vec);
+		}
+		if (labels.at<int>(i) == 2)
+		{
+			cluster3.push_back(vec);
+		}
+		if (labels.at<int>(i) == 3)
+		{
+			cluster4.push_back(vec);
+		}
+
+
+	}
+
+	std::vector<Mat> testFeatureGroup = FindFeatures("./test");
+	cout<<testFeatureGroup.size()<<endl<<endl;
+	//Mat testFeatureRaw = testFeatureGroup[0];
+
+	Mat featureMat1 = formatImagesForPCA(testFeatureGroup);
+		//cout <<endl<<"size"<<featureMat.size();
+	PCA pca1(featureMat1,cv::Mat(),CV_PCA_DATA_AS_ROW, 10);
+	Mat testFeaturePCA = pca1.project(featureMat1);
+	cout<<"================================================================================="<<endl;
+	cout<<testFeaturePCA.row(0)<<endl;
+	cout<<"================================================================================="<<endl;
+	// Function Approximation
+
+	// Count D1
+
+	float d1 = getProbability(testFeaturePCA.row(0),cluster1);
+	float d2 = getProbability(testFeaturePCA.row(0),cluster2);
+	float d3 = getProbability(testFeaturePCA.row(0),cluster3);
+	float d4 = getProbability(testFeaturePCA.row(0),cluster4);
+
+	cout<<endl;
+	cout<<"D1 : "<<d1<<endl;
+	cout<<"D2 : "<<d2<<endl;
+	cout<<"D3 : "<<d3<<endl;
+	cout<<"D4 : "<<d4<<endl;
+
+
+
+
+	waitKey(0);
 
 	return 0;
 
