@@ -8,6 +8,7 @@
 #include <dirent.h>
 #include <cmath>
 #include <math.h>
+#include <tgmath.h>
 
 using namespace std;
 using namespace cv;
@@ -16,7 +17,7 @@ using namespace cv;
 int        g_slider_position = 0;
 CvCapture* g_capture         = NULL;
 int counter = 1,group_counter = 0;
-
+int Video_Numbers = 0;
 
 /*
  * Function definitions
@@ -244,8 +245,11 @@ std::vector<Mat> FindFeatures(const char* directory){
 			//int group = stoi(name.substr(2,1));
 			//int imgno = stoi(name.substr(3,1));
 			//cv::Mat featMat(5,15,CV_64F);
+			Mat destination, kernel;
+			kernel = Mat::ones(3,3,CV_32F)/(float) 3*3;
 			frame = imread(path,1);
 			cv::cvtColor(frame, gray, CV_BGR2GRAY);
+			filter2D(gray,destination,-1,kernel,Point(-1,-1),0,BORDER_DEFAULT);
 			threshold(gray,thresh,214,255,CV_THRESH_BINARY);
 			findContours(thresh, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 			frame.copyTo(dst);
@@ -313,21 +317,36 @@ std::vector<Mat> FindFeatures(const char* directory){
 						//cout << imgno << endl;
 						int imgno=0;
 						Mat featureVector(1,15,CV_64F);
-						featureVector.at<double>(imgno,0) = mom.mu20;
-						featureVector.at<double>(imgno,1) = mom.mu11;
-						featureVector.at<double>(imgno,2) = mom.mu02;
-						featureVector.at<double>(imgno,3) = mom.mu30;
-						featureVector.at<double>(imgno,4) = mom.mu21;
-						featureVector.at<double>(imgno,5) = mom.mu12;
-						featureVector.at<double>(imgno,6) = mom.mu03;
-						featureVector.at<double>(imgno,7) = hu[0];
-						featureVector.at<double>(imgno,8) = hu[1];
-						featureVector.at<double>(imgno,9) = hu[2];
-						featureVector.at<double>(imgno,10) = hu[3];
-						featureVector.at<double>(imgno,11) = hu[4];
-						featureVector.at<double>(imgno,12) = hu[5];
-						featureVector.at<double>(imgno,13) = hu[6];
-						featureVector.at<double>(imgno,14) = theta;
+						featureVector.at<double>(imgno,0) = log(mom.mu20);
+						featureVector.at<double>(imgno,1) = log(mom.mu11);
+						featureVector.at<double>(imgno,2) = log(mom.mu02);
+						featureVector.at<double>(imgno,3) = log(mom.mu30);
+						featureVector.at<double>(imgno,4) = log(mom.mu21);
+						featureVector.at<double>(imgno,5) = log(mom.mu12);
+						featureVector.at<double>(imgno,6) = log(mom.mu03);
+						featureVector.at<double>(imgno,7) = log(hu[0]);
+						featureVector.at<double>(imgno,8) = log(hu[1]);
+						featureVector.at<double>(imgno,9) = log(hu[2]);
+						featureVector.at<double>(imgno,10) = log(hu[3]);
+						featureVector.at<double>(imgno,11) = log(hu[4]);
+						featureVector.at<double>(imgno,12) = log(hu[5]);
+						featureVector.at<double>(imgno,13) = log(hu[6]);
+						featureVector.at<double>(imgno,14) = log(theta)*100;
+//						featureVector.at<double>(imgno,0) = mom.mu20;
+//						featureVector.at<double>(imgno,1) = mom.mu11;
+//						featureVector.at<double>(imgno,2) = mom.mu02;
+//						featureVector.at<double>(imgno,3) = mom.mu30;
+//						featureVector.at<double>(imgno,4) = mom.mu21;
+//						featureVector.at<double>(imgno,5) = mom.mu12;
+//						featureVector.at<double>(imgno,6) = mom.mu03;
+//						featureVector.at<double>(imgno,7) = hu[0];
+//						featureVector.at<double>(imgno,8) = hu[1];
+//						featureVector.at<double>(imgno,9) = hu[2];
+//						featureVector.at<double>(imgno,10) = hu[3];
+//						featureVector.at<double>(imgno,11) = hu[4];
+//						featureVector.at<double>(imgno,12) = hu[5];
+//						featureVector.at<double>(imgno,13) = hu[6];
+//						featureVector.at<double>(imgno,14) = theta*100;
 
 						//cout << featMat<<endl;
 						featureVectorGroup.push_back(featureVector);
@@ -360,6 +379,7 @@ int main() {
 	if (dir != NULL) {
 		/* print all the files and directories within directory */
 		while ((ent = readdir (dir)) != NULL) {
+			Video_Numbers++;
 			//cout << ent->d_name<<endl;
 			string path = "./Clips/";
 			if (!strcmp (ent->d_name, "."))
@@ -388,15 +408,15 @@ int main() {
 	//cout<<"VP Size: "<<vp.size()<<endl;
 	//cout<<vp<<endl;
 
-	int clusterCount = 4;
+	int clusterCount = 5;
 	Mat labels;
-	int attempts = 4;
+	int attempts = 250;
 	Mat centers;
 
 	vp.convertTo(vp,CV_32F);
 	kmeans(vp, clusterCount, labels,
-			TermCriteria( TermCriteria::EPS+TermCriteria::COUNT, 20, 1.0),
-			attempts, KMEANS_PP_CENTERS , centers);
+			TermCriteria( 250, 250, 1.0),
+			attempts, KMEANS_RANDOM_CENTERS , centers);
 
 	cout << centers<<endl;
 	cout<< labels<<endl;
@@ -406,6 +426,7 @@ int main() {
 	vector<Mat> cluster2;
 	vector<Mat> cluster3;
 	vector<Mat> cluster4;
+	vector<Mat> cluster5;
 
 	for (int i = 0; i < vp.rows; ++i)
 	{
@@ -425,6 +446,10 @@ int main() {
 		if (labels.at<int>(i) == 3)
 		{
 			cluster4.push_back(vec);
+		}
+		if (labels.at<int>(i) == 4)
+		{
+			cluster5.push_back(vec);
 		}
 
 
@@ -449,13 +474,33 @@ int main() {
 	float d2 = getProbability(testFeaturePCA.row(0),cluster2);
 	float d3 = getProbability(testFeaturePCA.row(0),cluster3);
 	float d4 = getProbability(testFeaturePCA.row(0),cluster4);
+	float d5 = getProbability(testFeaturePCA.row(0),cluster5);
 
 	cout<<endl;
-	cout<<"D1 : "<<d1<<endl;
-	cout<<"D2 : "<<d2<<endl;
-	cout<<"D3 : "<<d3<<endl;
-	cout<<"D4 : "<<d4<<endl;
 
+	//cout<<"D1 : "<<d1<<endl;
+	//cout<<"D2 : "<<d2<<endl;
+	//cout<<"D3 : "<<d3<<endl;
+	//cout<<"D4 : "<<d4<<endl;
+	//cout<<"D5 : "<<d5<<endl;
+
+	float d[5] = {d1,d2,d3,d4,d5};
+
+	int max = 0;
+	for(int i=0;i<5;i++)
+	{
+		if(d[i]<0)
+		{
+			d[i]=d[i]*-1;
+		}
+
+		if(d[i]>d[max])
+		{
+			max=i;
+		}
+	}
+
+	cout<<"\n\nDistance"<<d[max]<<"   i+ group"<<max;
 
 
 
