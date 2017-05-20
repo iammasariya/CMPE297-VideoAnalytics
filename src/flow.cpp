@@ -241,16 +241,13 @@ std::vector<Mat> FindFeatures(const char* directory){
 
 			path.append(ent->d_name);
 			string name = std::string(ent->d_name);
-
-			//int group = stoi(name.substr(2,1));
-			//int imgno = stoi(name.substr(3,1));
-			//cv::Mat featMat(5,15,CV_64F);
 			Mat destination, kernel;
 			kernel = Mat::ones(3,3,CV_32F)/(float) 3*3;
 			frame = imread(path,1);
 			cv::cvtColor(frame, gray, CV_BGR2GRAY);
 			filter2D(gray,destination,-1,kernel,Point(-1,-1),0,BORDER_DEFAULT);
 			threshold(gray,thresh,214,255,CV_THRESH_BINARY);
+			Canny(gray,destination,100,300,3);
 			findContours(thresh, contours, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
 			frame.copyTo(dst);
 			for (int i = 0; i < contours.size(); i++)
@@ -332,40 +329,18 @@ std::vector<Mat> FindFeatures(const char* directory){
 						featureVector.at<double>(imgno,12) = log(hu[5]);
 						featureVector.at<double>(imgno,13) = log(hu[6]);
 						featureVector.at<double>(imgno,14) = log(theta)*100;
-//						featureVector.at<double>(imgno,0) = mom.mu20;
-//						featureVector.at<double>(imgno,1) = mom.mu11;
-//						featureVector.at<double>(imgno,2) = mom.mu02;
-//						featureVector.at<double>(imgno,3) = mom.mu30;
-//						featureVector.at<double>(imgno,4) = mom.mu21;
-//						featureVector.at<double>(imgno,5) = mom.mu12;
-//						featureVector.at<double>(imgno,6) = mom.mu03;
-//						featureVector.at<double>(imgno,7) = hu[0];
-//						featureVector.at<double>(imgno,8) = hu[1];
-//						featureVector.at<double>(imgno,9) = hu[2];
-//						featureVector.at<double>(imgno,10) = hu[3];
-//						featureVector.at<double>(imgno,11) = hu[4];
-//						featureVector.at<double>(imgno,12) = hu[5];
-//						featureVector.at<double>(imgno,13) = hu[6];
-//						featureVector.at<double>(imgno,14) = theta*100;
 
-						//cout << featMat<<endl;
 						featureVectorGroup.push_back(featureVector);
-						//feat.insert(std::pair<int,std::vector<Mat>>((group),featureVectorGroup);
 
 					}
 				}
 
 			}
-			//cv::imshow("src", frame);
-			//cv::imshow("dst", dst);
-			//waitKey(0);
-			//int a = remove(path.c_str());
 		}
 		for(int i =0;i<featureVectorGroup.size();i++)
 		{
 			//cout<<featureVectorGroup[i]<<"\n";
 		}
-		//cout<<featureVectorGroup;
 	}
 	closedir (dir);
 	return featureVectorGroup;
@@ -405,8 +380,6 @@ int main() {
 	PCA pca(featureMat,cv::Mat(),CV_PCA_DATA_AS_ROW, 10);
 	Mat vp = pca.project(featureMat);
 
-	//cout<<"VP Size: "<<vp.size()<<endl;
-	//cout<<vp<<endl;
 
 	int clusterCount = 5;
 	Mat labels;
@@ -466,7 +439,11 @@ int main() {
 	cout<<"================================================================================="<<endl;
 	cout<<testFeaturePCA.row(0)<<endl;
 	cout<<"================================================================================="<<endl;
-	// Function Approximation
+	// Eigenvalue and Eigenvector calculation
+
+	Mat mean = pca.mean.clone();
+	Mat eigenvalues = pca.eigenvalues.clone();
+	Mat eigenvectors = pca.eigenvectors.clone();
 
 	// Count D1
 
@@ -477,12 +454,6 @@ int main() {
 	float d5 = getProbability(testFeaturePCA.row(0),cluster5);
 
 	cout<<endl;
-
-	//cout<<"D1 : "<<d1<<endl;
-	//cout<<"D2 : "<<d2<<endl;
-	//cout<<"D3 : "<<d3<<endl;
-	//cout<<"D4 : "<<d4<<endl;
-	//cout<<"D5 : "<<d5<<endl;
 
 	float d[5] = {d1,d2,d3,d4,d5};
 

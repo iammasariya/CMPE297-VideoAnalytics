@@ -4,15 +4,12 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 CPP_SRCS += \
-../src/feat.cpp \
 ../src/flow.cpp 
 
 OBJS += \
-./src/feat.o \
 ./src/flow.o 
 
 CPP_DEPS += \
-./src/feat.d \
 ./src/flow.d 
 
 
